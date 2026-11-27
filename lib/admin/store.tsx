@@ -19,7 +19,8 @@ export function AdminStore({children}:{children:ReactNode}) {
  const [data,setData]=useState(initialState); const [ready,setReady]=useState(false)
  useEffect(()=>{try{const saved=localStorage.getItem('rk-admin-mock-v1');if(saved)setData({...initialState,...JSON.parse(saved)})}catch{}setReady(true)},[])
  useEffect(()=>{if(ready)localStorage.setItem('rk-admin-mock-v1',JSON.stringify(data))},[data,ready])
- const value=useMemo(()=>({data,update:(fn:(s:State)=>State)=>setData(fn)}),[data])
+ const update = useMemo(() => (fn: (s: State) => State) => setData(fn), [])
+ const value = useMemo(() => ({ data, update }), [data, update])
  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }
 export function useAdminStore(){const context=useContext(StoreContext);if(!context)throw new Error('useAdminStore must be used inside AdminStore');return context}

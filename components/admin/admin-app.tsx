@@ -1,28 +1,44 @@
-'use client'
+'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { Activity, ArrowDownRight, ArrowUpRight, Boxes, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, LayoutDashboard, LogOut, Menu, Package, Plus, Search, Settings2, ShieldCheck, SlidersHorizontal, Tag, Users, Warehouse, Globe2, UserRound, Eye, EyeOff, MoreHorizontal, Pencil, Trash2, X, AlertTriangle, ArrowUp, ArrowDown, Image as ImageIcon } from 'lucide-react'
-import { AdminStore, useAdminStore, type Product, type Category, type Dealer, type State, productImage } from '@/lib/admin/store'
-import { AuthProvider, useAuth } from '@/lib/auth'
-import { ApiError } from '@/lib/http'
-import { Inventory, Dealers, DealerDetail, CartActivity, WebsiteContent, Profile, Modal } from '@/components/admin/admin-extras'
+import React, { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { AdminStore, useAdminStore } from '@/lib/admin/store';
+import { AuthProvider, useAuth } from '@/lib/auth';
+import { ReactQueryProvider } from '@/lib/providers/query-provider';
+import { AdminShell } from '@/components/admin/layout/admin-shell';
+import { LoginForm } from '@/components/admin/auth/login-form';
+import { DashboardView } from '@/components/admin/dashboard/dashboard-view';
+import { CategoriesView } from '@/components/admin/categories/categories-view';
+import { ProductsView } from '@/components/admin/products/products-view';
+import {
+  Inventory,
+  Dealers,
+  DealerDetail,
+  CartActivity,
+  WebsiteContent,
+  Profile,
+} from '@/components/admin/admin-extras';
 
-const menu=[{name:'Dashboard',path:'/admin/dashboard',icon:LayoutDashboard},{name:'Categories',path:'/admin/categories',icon:Tag},{name:'Products',path:'/admin/products',icon:Package},{name:'Inventory / Stock',path:'/admin/inventory',icon:Warehouse},{name:'Dealers',path:'/admin/dealers',icon:Users},{name:'Dealer Cart Activity',path:'/admin/dealer-cart-activity',icon:Activity},{name:'Website Content',path:'/admin/website-content',icon:Globe2},{name:'Admin Profile',path:'/admin/profile',icon:UserRound}]
-const titles:Record<string,string>={dashboard:'Dashboard',categories:'Categories',products:'Products',inventory:'Inventory / Stock',dealers:'Dealers','dealer-cart-activity':'Dealer Cart Activity','website-content':'Website Content',profile:'Admin Profile'}
-const money=(n:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n)
-const date=(s:string)=>new Date(`${s}T00:00:00`).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})
-function pageUrl(path:string){return path}
-export default function AdminApp(){return <AuthProvider><AdminStore><AdminRouter/></AdminStore></AuthProvider>}
-function AdminRouter(){
-  const path=usePathname();
-  const router=useRouter();
-  const route=path.split('/').filter(Boolean).slice(1);
-  const isLoginPage=route[0]==='login';
+export default function AdminApp() {
+  return (
+    <ReactQueryProvider>
+      <AuthProvider>
+        <AdminStore>
+          <AdminRouter />
+        </AdminStore>
+      </AuthProvider>
+    </ReactQueryProvider>
+  );
+}
+
+function AdminRouter() {
+  const path = usePathname();
+  const router = useRouter();
+  const route = path.split('/').filter(Boolean).slice(1);
+  const isLoginPage = route[0] === 'login';
   const { isAuthenticated, isLoading, logout } = useAuth();
 
-  useEffect(()=>{
+  useEffect(() => {
     if (!isLoading) {
       if (!isLoginPage && !isAuthenticated) {
         router.replace('/admin/login');
@@ -33,77 +49,57 @@ function AdminRouter(){
   }, [isLoading, isLoginPage, isAuthenticated, router]);
 
   if (isLoading || (!isLoginPage && !isAuthenticated)) {
-    return <div className="admin-loading"><span className="loading-mark">RK</span><span>Preparing your workspace</span></div>;
+    return (
+      <div className="admin-loading">
+        <span className="loading-mark">RK</span>
+        <span>Preparing your workspace</span>
+      </div>
+    );
   }
 
   if (isLoginPage) {
-    return <Login onLoginSuccess={() => router.push('/admin/dashboard')} />;
+    return <LoginForm onLoginSuccess={() => router.push('/admin/dashboard')} />;
   }
 
   return (
-    <AdminShell onLogout={async () => {
-      await logout();
-      router.push('/admin/login');
-    }}>
-      <AdminPage route={route}/>
+    <AdminShell
+      onLogout={async () => {
+        await logout();
+        router.push('/admin/login');
+      }}
+    >
+      <AdminPage route={route} />
     </AdminShell>
   );
 }
-function Login({onLoginSuccess}:{onLoginSuccess:()=>void}){
-  const { login, isLoggingIn } = useAuth();
-  const [email,setEmail]=useState('admin@rktiles.com');
-  const [password,setPassword]=useState('');
-  const [show,setShow]=useState(false);
-  const [error,setError]=useState('');
 
-  const submit=async (e:FormEvent)=>{
-    e.preventDefault();
-    if (isLoggingIn) return;
-    setError('');
-    try {
-      await login({ email: email.trim(), password });
-      onLoginSuccess();
-    } catch (err: any) {
-      if (err instanceof ApiError) {
-        setError(err.message || 'Invalid email or password');
-      } else {
-        setError(err?.message || 'An unexpected error occurred during sign in');
-      }
-    }
-  };
+function AdminPage({ route }: { route: string[] }) {
+  const key = route[0] || 'dashboard';
+  const { data, update } = useAdminStore();
+  const id = route[1];
 
-  return <main className="login-page"><div className="login-art"><div className="login-brand"><span className="brand-mark">RK</span><span>RK TILES<span className="brand-sub">SURFACES, REIMAGINED</span></span></div><div className="login-art-copy"><span className="eyebrow">THE ADMIN WORKSPACE</span><h1>Thoughtful surfaces.<br/>Thoughtful business.</h1><p>Your central space to shape the RK Tiles catalogue and dealer experience.</p><div className="art-caption"><span className="caption-line"/> Curated for the way you work</div></div><div className="login-photo-credit">A quieter kind of luxury</div></div><section className="login-form-wrap"><div className="login-mobile-brand"><span className="brand-mark">RK</span> RK TILES</div><div className="login-form"><span className="eyebrow">WELCOME BACK</span><h2>Sign in to your workspace</h2><p className="muted">Enter your admin credentials to continue.</p><form onSubmit={submit}><label>Email address<input autoComplete="username" type="email" value={email} onChange={e=>setEmail(e.target.value)} required disabled={isLoggingIn} placeholder="admin@rktiles.com"/></label><label>Password<span className="password-field"><input autoComplete="current-password" type={show?'text':'password'} value={password} onChange={e=>{setPassword(e.target.value);setError('')}} required disabled={isLoggingIn} placeholder="Enter your password"/><button type="button" aria-label={show?'Hide password':'Show password'} onClick={()=>setShow(!show)}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></span></label>{error&&<div className="form-error" role="alert">{error}</div>}<button className="primary-button wide" type="submit" disabled={isLoggingIn}>{isLoggingIn ? 'Signing in...' : <>Sign in <ArrowUpRight size={16}/></>}</button></form><div className="login-hint"><ShieldCheck size={15}/> Secure admin access <span>·</span> Demo: admin@rktiles.com / Admin@123456</div></div><div className="login-footer">© 2026 RK Tiles <span>Privacy</span><span>Help</span></div></section></main>
+  switch (key) {
+    case 'dashboard':
+      return <DashboardView data={data} />;
+    case 'categories':
+      return <CategoriesView data={data} update={update} />;
+    case 'products':
+      return <ProductsView data={data} update={update} />;
+    case 'inventory':
+      return <Inventory data={data} update={update} />;
+    case 'dealers':
+      return id ? (
+        <DealerDetail data={data} update={update} id={id} />
+      ) : (
+        <Dealers data={data} update={update} />
+      );
+    case 'dealer-cart-activity':
+      return <CartActivity data={data} />;
+    case 'website-content':
+      return <WebsiteContent data={data} update={update} />;
+    case 'profile':
+      return <Profile />;
+    default:
+      return <DashboardView data={data} />;
+  }
 }
-function AdminShell({children,onLogout}:{children:React.ReactNode;onLogout:()=>void}){
-  const path=usePathname();
-  const { user } = useAuth();
-  const [collapsed,setCollapsed]=useState(false);
-  const [mobile,setMobile]=useState(false);
-  const [profile,setProfile]=useState(false);
-  const [search,setSearch]=useState('');
-  const title=titles[path.split('/')[2]]||'Dealer Profile';
-  const adminName = user?.name || 'Rohan Kapoor';
-  const adminRole = user?.role === 'admin' ? 'Administrator' : 'Administrator';
-  const initials = adminName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'RK';
-
-  const [loggingOut, setLoggingOut] = useState(false);
-  const handleLogoutClick = async () => {
-    if (loggingOut) return;
-    setLoggingOut(true);
-    setProfile(false);
-    await onLogout();
-  };
-
-  return <div className="admin-shell"><aside className={`sidebar ${collapsed?'collapsed':''} ${mobile?'mobile-open':''}`}><Link href="/admin/dashboard" className="sidebar-brand"><span className="brand-mark">RK</span><span className="brand-name">RK TILES<small>ADMIN STUDIO</small></span><button className="collapse-btn" aria-label="Toggle sidebar" onClick={e=>{e.preventDefault();setCollapsed(!collapsed)}}><ChevronLeft size={16}/></button></Link><div className="nav-label">WORKSPACE</div><nav>{menu.map(item=>{const Icon=item.icon;const active=path===item.path||path.startsWith(item.path+'/');return <Link key={item.path} href={item.path} onClick={()=>setMobile(false)} className={`nav-link ${active?'active':''}`} title={collapsed?item.name:undefined}><Icon size={18}/><span>{item.name}</span>{active&&<i/>}</Link>})}</nav><div className="sidebar-bottom"><div className="help-card"><span className="help-icon"><CircleHelp size={17}/></span><div><strong>Need a hand?</strong><small>Get help with your workspace</small></div><ChevronRight size={15}/></div><div className="sidebar-user"><span className="avatar">{initials}</span><span className="user-label"><strong>{adminName}</strong><small>{adminRole}</small></span><button aria-label="Account menu" onClick={()=>setProfile(!profile)}><MoreHorizontal size={18}/></button></div></div></aside>{mobile&&<button className="mobile-shade" aria-label="Close navigation" onClick={()=>setMobile(false)}/> }<main className="main-panel"><header className="topbar"><div className="topbar-left"><button className="mobile-menu" onClick={()=>setMobile(true)} aria-label="Open navigation"><Menu size={20}/></button><div className="crumb"><span>RK Tiles</span><ChevronRight size={13}/><strong>{title}</strong></div></div><div className="topbar-actions"><label className="top-search"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search anything..." aria-label="Search this page"/><kbd>⌘ K</kbd></label><span className="top-separator"/><div className="profile-menu-wrap"><button className="profile-trigger" onClick={()=>setProfile(!profile)}><span className="avatar">{initials}</span><span><strong>{adminName}</strong><small>{adminRole}</small></span><ChevronDown size={15}/></button>{profile&&<div className="profile-pop"><Link href="/admin/profile" onClick={()=>setProfile(false)}><UserRound size={16}/> Admin Profile</Link><button onClick={handleLogoutClick} disabled={loggingOut}><LogOut size={16}/> {loggingOut ? 'Logging out...' : 'Log out'}</button></div>}</div></div></header><div className="page-area"><div className="page-content">{children}</div></div></main></div>
-}
-function useStateData(){return useAdminStore()}
-function AdminPage({route}:{route:string[]}){const key=route[0]||'dashboard';const {data,update}=useStateData();const id=route[1];if(key==='dashboard')return <Dashboard data={data}/>;if(key==='categories')return <Categories data={data} update={update}/>;if(key==='products')return <Products data={data} update={update}/>;if(key==='inventory')return <Inventory data={data} update={update}/>;if(key==='dealers'&&id)return <DealerDetail data={data} update={update} id={id}/>;if(key==='dealers')return <Dealers data={data} update={update}/>;if(key==='dealer-cart-activity')return <CartActivity data={data}/>;if(key==='website-content')return <WebsiteContent data={data} update={update}/>;if(key==='profile')return <Profile/>;return <Dashboard data={data}/>}
-function PageHeading({eyebrow,title,description,action}:{eyebrow?:string;title:string;description:string;action?:React.ReactNode}){return <div className="page-heading"><div>{eyebrow&&<div className="eyebrow">{eyebrow}</div>}<h1>{title}</h1><p>{description}</p></div>{action}</div>}
-function StatCard({label,value,detail,icon:Icon,tone='sand'}:{label:string;value:string|number;detail:string;icon:typeof Package;tone?:string}){return <article className="stat-card"><div className="stat-top"><span>{label}</span><span className={`stat-icon ${tone}`}><Icon size={17}/></span></div><strong className="stat-value">{value}</strong><span className="stat-detail">{detail}</span></article>}
-function Status({value}:{value:string}){const style=value==='Approved'||value==='In stock'||value==='Active'||value==='Published'?'positive':value==='Pending'||value==='Low stock'?'warning':value==='Rejected'||value==='Out of stock'||value==='Inactive'||value==='Unpublished'?'negative':'neutral';return <span className={`status ${style}`}><i/>{value}</span>}
-function ProductPhoto({src,name,className=''}:{src:string;name:string;className?:string}){return <img className={`product-photo ${className}`} src={src} alt={name} loading="lazy"/>}
-function Dashboard({data}:{data:State}){const total=data.products.reduce((s,p)=>s+p.stock,0);const approved=data.dealers.filter(d=>d.status==='Approved').length;const pending=data.dealers.filter(d=>d.status==='Pending').length;const low=data.products.filter(p=>p.stock>0&&p.stock<=p.threshold);const stockStatus=(p:Product)=>p.stock===0?'Out of stock':p.stock<=p.threshold?'Low stock':'In stock';const cartCount=(d:Dealer)=>d.cart.reduce((s,c)=>s+c.quantity,0)
- return <><PageHeading eyebrow="MONDAY, 26 NOVEMBER 2026" title="Good morning, Rohan" description="Here&apos;s what&apos;s happening across your tile business today." action={<button className="secondary-button" onClick={()=>window.print()}><ArrowDownRight size={16}/> Export overview</button>}/><div className="stats-grid"><StatCard label="Total products" value={data.products.length} detail="Across your catalogue" icon={Package}/><StatCard label="Categories" value={data.categories.length} detail={`${data.categories.filter(c=>c.active).length} visible on website`} icon={Tag} tone="blue"/><StatCard label="Total stock quantity" value={total.toLocaleString('en-IN')} detail="Central inventory units" icon={Warehouse} tone="green"/><StatCard label="Total dealers" value={data.dealers.length} detail={`${approved} approved partners`} icon={Users} tone="blue"/><StatCard label="Approved dealers" value={approved} detail="Ready to browse catalogue" icon={Check} tone="green"/><StatCard label="Pending approvals" value={pending} detail="Awaiting your review" icon={Activity} tone="amber"/></div><div className="dashboard-grid"><section className="panel inventory-panel"><div className="panel-heading"><div><h2>Inventory overview</h2><p>A snapshot of central stock availability</p></div><Link href="/admin/inventory" className="text-link">View inventory <ArrowUpRight size={14}/></Link></div><div className="inventory-summary"><div><span className="summary-number">{data.products.length}</span><span className="summary-label">Products tracked</span></div><div><span className="summary-number warning-text">{low.length}</span><span className="summary-label">Low stock</span></div><div><span className="summary-number danger-text">{data.products.filter(p=>p.stock===0).length}</span><span className="summary-label">Out of stock</span></div></div><div className="stock-bar-label"><span>Available stock</span><strong>{total.toLocaleString('en-IN')} units</strong></div><div className="stock-bar"><i style={{width:`${Math.max(5,Math.min(100,total/8))}%`}}/></div><div className="stock-foot"><span><i className="dot green-dot"/> Healthy stock</span><span>Across {data.categories.length} collections</span></div></section><section className="panel alert-panel"><div className="panel-heading"><div><h2>Low stock alerts</h2><p>Products to replenish soon</p></div><span className="alert-count">{low.length} items</span></div>{low.length?low.slice(0,3).map(p=><div className="alert-row" key={p.id}><span className="alert-mark"><AlertTriangle size={15}/></span><div className="alert-info"><strong>{p.name}</strong><small>{p.sku}</small></div><span className="alert-qty">{p.stock} <small>left</small></span></div>):<div className="empty-inline">All products are above their stock thresholds.</div>}<Link href="/admin/inventory" className="text-link alert-link">Review stock <ArrowUpRight size={14}/></Link></section></div><div className="dashboard-grid second-row"><section className="panel"><div className="panel-heading"><div><h2>Recently added products</h2><p>Your latest catalogue updates</p></div><Link href="/admin/products" className="text-link">View all <ArrowUpRight size={14}/></Link></div><div className="table-scroll"><table><thead><tr><th>PRODUCT</th><th>SIZE · FINISH</th><th>STOCK</th><th>STATUS</th></tr></thead><tbody>{[...data.products].slice(-4).reverse().map(p=><tr key={p.id}><td><div className="product-cell"><ProductPhoto src={p.image} name={p.name}/><span><strong>{p.name}</strong><small>{p.sku}</small></span></div></td><td>{p.size}<small className="cell-sub">{p.finish}</small></td><td>{p.stock}</td><td><Status value={stockStatus(p)}/></td></tr>)}</tbody></table></div></section><section className="panel"><div className="panel-heading"><div><h2>Recent dealers</h2><p>Latest partner registrations</p></div><Link href="/admin/dealers" className="text-link">View all <ArrowUpRight size={14}/></Link></div><div className="dealer-list">{[...data.dealers].sort((a,b)=>b.registered.localeCompare(a.registered)).slice(0,4).map(d=><Link className="dealer-list-row" key={d.id} href={`/admin/dealers/${d.id}`}><span className="dealer-initial">{d.business.slice(0,1)}</span><span className="dealer-list-name"><strong>{d.business}</strong><small>{d.id} · {date(d.registered)}</small></span><Status value={d.status}/></Link>)}</div></section></div><section className="panel cart-overview"><div className="panel-heading"><div><h2>Dealer cart activity</h2><p>Current product interest · carts are not orders or sales</p></div><Link href="/admin/dealer-cart-activity" className="text-link">View activity <ArrowUpRight size={14}/></Link></div><div className="cart-activity-grid">{data.dealers.filter(d=>d.cart.length).map(d=><Link key={d.id} href={`/admin/dealers/${d.id}`} className="cart-mini"><span className="dealer-initial">{d.business.slice(0,1)}</span><span className="cart-mini-name"><strong>{d.business}</strong><small>{d.cart.length} unique products · {cartCount(d)} total qty</small></span><span className="category-chips">{[...new Set(d.cart.map(i=>data.categories.find(c=>c.id===data.products.find(p=>p.id===i.productId)?.categoryId)?.name.split(' ')[0]).filter(Boolean))].join(' · ')}</span><ChevronRight size={16}/></Link>)}</div></section><div className="quick-actions"><span className="quick-label">QUICK ACTIONS</span><Link href="/admin/products?new=1"><Plus size={17}/> Add new product <ArrowUpRight size={14}/></Link><Link href="/admin/categories?new=1"><Tag size={16}/> Create category <ArrowUpRight size={14}/></Link><Link href="/admin/inventory"><Warehouse size={16}/> Update stock <ArrowUpRight size={14}/></Link><Link href="/admin/dealers"><Users size={16}/> View dealers <ArrowUpRight size={14}/></Link></div></>}
-function Categories({data,update}:{data:State;update:(fn:(s:State)=>State)=>void}){const [query,setQuery]=useState('');const [editing,setEditing]=useState<Category|null|false>(false);const [notice,setNotice]=useState('');const list=data.categories.filter(c=>`${c.name} ${c.description}`.toLowerCase().includes(query.toLowerCase()));const save=(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();const form=new FormData(e.currentTarget);const name=String(form.get('name')).trim(),slug=String(form.get('slug')).trim().toLowerCase();if(data.categories.some(c=>c.slug===slug&&c.id!==(editing || undefined)?.id)){setNotice('That slug is already in use. Choose a unique slug.');return}const item={id:(editing || undefined)?.id||`cat-${Date.now()}`,name,slug,description:String(form.get('description')),image:String(form.get('image')||productImage(0)),active:form.get('active')==='on',created:(editing || undefined)?.created||new Date().toISOString().slice(0,10)};update(s=>({...s,categories:editing?s.categories.map(c=>c.id===item.id?item:c):[item,...s.categories]}));setEditing(false);setNotice('Category saved successfully.')};return <><PageHeading eyebrow="CATALOGUE CONTROL" title="Categories" description="Organize your collections and control what appears on your website." action={<button className="primary-button" onClick={()=>{setNotice('');setEditing(null)}}><Plus size={16}/> Create category</button>}/>{notice&&<div className="notice"><Check size={16}/>{notice}<button onClick={()=>setNotice('')}><X size={15}/></button></div>}<section className="panel content-panel"><div className="list-toolbar"><div><strong>{data.categories.length} collections</strong><span> · {data.categories.filter(c=>c.active).length} active</span></div><label className="inline-search"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search categories"/></label></div><div className="category-grid">{list.map(c=><article className="category-card" key={c.id}><div className="category-cover"><img src={c.image} alt={c.name}/><Status value={c.active?'Active':'Inactive'}/><button className="icon-button category-edit" aria-label={`Edit ${c.name}`} onClick={()=>setEditing(c)}><Pencil size={15}/></button></div><div className="category-body"><div className="category-title"><h3>{c.name}</h3><span>{data.products.filter(p=>p.categoryId===c.id).length} products</span></div><p>{c.description}</p><div className="category-meta"><span>/{c.slug}</span><span>Created {date(c.created)}</span></div><div className="category-actions"><button className="secondary-button compact" onClick={()=>setEditing(c)}><Pencil size={14}/> Edit</button><button className="secondary-button compact" onClick={()=>update(s=>({...s,categories:s.categories.map(x=>x.id===c.id?{...x,active:!x.active}:x)}))}>{c.active?'Deactivate':'Activate'}</button><button className="icon-button danger-icon" aria-label="Delete category" onClick={()=>{const count=data.products.filter(p=>p.categoryId===c.id).length;if(count){setNotice(`Cannot delete “${c.name}”: ${count} product${count===1?' is':'s are'} assigned. Move or delete them first.`);return}if(confirm(`Delete ${c.name}? This cannot be undone.`))update(s=>({...s,categories:s.categories.filter(x=>x.id!==c.id)}))}}><Trash2 size={15}/></button></div></div></article>)}</div>{list.length===0&&<div className="empty-state">No categories match your search.</div>}</section>{editing!==false&&<Modal title={editing?'Edit category':'Create category'} onClose={()=>setEditing(false)}><form className="admin-form" onSubmit={save}><div className="form-grid"><label>Category name<input name="name" defaultValue={editing?.name} required/></label><label>Slug<input name="slug" defaultValue={editing?.slug} required pattern="[a-z0-9-]+"/></label><label className="full-field">Description<textarea name="description" defaultValue={editing?.description} rows={3}/></label><label>Image URL<input name="image" defaultValue={editing?.image||productImage(0)}/></label><label className="toggle-field"><input name="active" type="checkbox" defaultChecked={editing?.active??true}/> Visible on website</label></div><div className="modal-actions"><button className="secondary-button" type="button" onClick={()=>setEditing(false)}>Cancel</button><button className="primary-button" type="submit">Save category</button></div></form></Modal>}</>}
-function Products({data,update}:{data:State;update:(fn:(s:State)=>State)=>void}){const [query,setQuery]=useState('');const [category,setCategory]=useState('All categories');const [status,setStatus]=useState('All availability');const [stock,setStock]=useState('All stock');const [show,setShow]=useState('All visibility');const [editing,setEditing]=useState<Product|null|false>(false);const [selected,setSelected]=useState<Product|null>(null);const [notice,setNotice]=useState('');const filtered=data.products.filter(p=>{const cat=data.categories.find(c=>c.id===p.categoryId)?.name||'';return `${p.name} ${p.sku}`.toLowerCase().includes(query.toLowerCase())&&(category==='All categories'||cat===category)&&(status==='All availability'||(status==='Available'?p.stock>0:p.stock===0))&&(stock==='All stock'||(stock==='Low stock'?p.stock>0&&p.stock<=p.threshold:stock==='Out of stock'?p.stock===0:p.stock>p.threshold))&&(show==='All visibility'||(show==='Published'?p.published:!p.published))});const save=(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();const f=new FormData(e.currentTarget);const product:Product={id:(editing || undefined)?.id||`prd-${Date.now()}`,name:String(f.get('name')),sku:String(f.get('sku')),categoryId:String(f.get('categoryId')),size:String(f.get('size')),finish:String(f.get('finish')),surface:String(f.get('surface')),color:String(f.get('color')),price:Number(f.get('price')||0),stock:Math.max(0,Number(f.get('stock')||0)),threshold:Number(f.get('threshold')||0),image:String(f.get('image')||productImage(0)),featured:f.get('featured')==='on',published:f.get('published')==='on',active:f.get('active')==='on',description:String(f.get('description')),updated:new Date().toISOString().slice(0,10)};update(s=>({...s,products:editing?s.products.map(p=>p.id===product.id?product:p):[product,...s.products],content:{...s.content,featuredIds:product.featured?[...new Set([...s.content.featuredIds,product.id])]:s.content.featuredIds.filter(id=>id!==product.id)}}));setEditing(false);setNotice('Product saved. Catalogue and stock totals are updated.')};const categoryName=(id:string)=>data.categories.find(c=>c.id===id)?.name||'Uncategorized';const availability=(p:Product)=>p.stock>0?'Available':'Out of stock';const statusStock=(p:Product)=>p.stock===0?'Out of stock':p.stock<=p.threshold?'Low stock':'In stock'
- return <><PageHeading eyebrow="CATALOGUE CONTROL" title="Products" description="Manage your tile catalogue, product visibility and availability." action={<button className="primary-button" onClick={()=>{setNotice('');setEditing(null)}}><Plus size={16}/> Add product</button>}/>{notice&&<div className="notice"><Check size={16}/>{notice}<button onClick={()=>setNotice('')}><X size={15}/></button></div>}<section className="panel content-panel"><div className="list-toolbar product-toolbar"><label className="inline-search wide-search"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name or SKU"/></label><select value={category} onChange={e=>setCategory(e.target.value)}><option>All categories</option>{data.categories.map(c=><option key={c.id}>{c.name}</option>)}</select><select value={status} onChange={e=>setStatus(e.target.value)}><option>All availability</option><option>Available</option><option>Out of stock</option></select><select value={stock} onChange={e=>setStock(e.target.value)}><option>All stock</option><option>In stock</option><option>Low stock</option><option>Out of stock</option></select><select value={show} onChange={e=>setShow(e.target.value)}><option>All visibility</option><option>Published</option><option>Unpublished</option></select></div><div className="table-scroll"><table className="products-table"><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>SIZE · FINISH</th><th>PRICE</th><th>STOCK</th><th>AVAILABILITY</th><th>WEBSITE</th><th/></tr></thead><tbody>{filtered.map(p=><tr key={p.id} onClick={()=>setSelected(p)} className="click-row"><td><div className="product-cell"><ProductPhoto src={p.image} name={p.name}/><span><strong>{p.name}{p.featured&&<span className="featured-star">FEATURED</span>}</strong><small>{p.sku}</small></span></div></td><td>{categoryName(p.categoryId)}</td><td>{p.size}<small className="cell-sub">{p.finish} · {p.surface}</small></td><td>{money(p.price)}</td><td><strong>{p.stock}</strong><small className="cell-sub">threshold {p.threshold}</small></td><td><Status value={availability(p)}/></td><td><Status value={p.published?'Published':'Unpublished'}/></td><td><button className="icon-button" aria-label={`Edit ${p.name}`} onClick={e=>{e.stopPropagation();setEditing(p)}}><Pencil size={15}/></button></td></tr>)}</tbody></table>{filtered.length===0&&<div className="empty-state">No products match these filters.</div>}</div><div className="table-footer">Showing <strong>{filtered.length}</strong> of {data.products.length} products <span><SlidersHorizontal size={14}/> Filters apply instantly</span></div></section>{editing!==false&&<Modal title={editing?'Edit product':'Add product'} onClose={()=>setEditing(false)} wide><form className="admin-form" onSubmit={save}><div className="form-section-title">PRODUCT DETAILS</div><div className="form-grid"><label>Product name<input name="name" defaultValue={editing?.name} required/></label><label>SKU / Product ID<input name="sku" defaultValue={editing?.sku} required/></label><label>Category<select name="categoryId" defaultValue={editing?.categoryId||data.categories[0]?.id} required>{data.categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Tile size<input name="size" defaultValue={editing?.size} placeholder="e.g. 600 × 1200 mm"/></label><label>Finish<input name="finish" defaultValue={editing?.finish}/></label><label>Surface / material<input name="surface" defaultValue={editing?.surface}/></label><label>Color<input name="color" defaultValue={editing?.color}/></label><label>Price (₹ / unit)<input name="price" type="number" min="0" defaultValue={editing?.price}/></label><label className="full-field">Description<textarea name="description" rows={2} defaultValue={editing?.description}/></label></div><div className="form-section-title">INVENTORY & VISIBILITY</div><div className="form-grid"><label>Stock quantity<input name="stock" type="number" min="0" defaultValue={editing?.stock??0}/></label><label>Low-stock threshold<input name="threshold" type="number" min="0" defaultValue={editing?.threshold??20}/></label><label>Product image URL<input name="image" defaultValue={editing?.image||productImage(0)}/></label><div className="checkbox-row"><label><input name="featured" type="checkbox" defaultChecked={editing?.featured}/> Featured</label><label><input name="published" type="checkbox" defaultChecked={editing?.published??true}/> Published</label><label><input name="active" type="checkbox" defaultChecked={editing?.active??true}/> Active</label></div></div><div className="modal-actions"><button className="secondary-button" type="button" onClick={()=>setEditing(false)}>Cancel</button><button className="primary-button" type="submit">Save product</button></div></form></Modal>}{selected&&<Modal title={selected.name} onClose={()=>setSelected(null)}><div className="product-detail"><ProductPhoto src={selected.image} name={selected.name} className="detail-photo"/><div className="detail-tags"><Status value={selected.published?'Published':'Unpublished'}/><Status value={statusStock(selected)}/></div><div className="detail-sku">{selected.sku}</div><p>{selected.description}</p><div className="detail-grid"><span>Category<strong>{categoryName(selected.categoryId)}</strong></span><span>Size<strong>{selected.size}</strong></span><span>Finish<strong>{selected.finish}</strong></span><span>Surface<strong>{selected.surface}</strong></span><span>Color<strong>{selected.color}</strong></span><span>Price<strong>{money(selected.price)}</strong></span><span>Stock<strong>{selected.stock} units</strong></span><span>Low-stock threshold<strong>{selected.threshold} units</strong></span></div><div className="modal-actions"><button className="secondary-button" onClick={()=>{setSelected(null);setEditing(selected)}}><Pencil size={15}/> Edit product</button><button className="primary-button" onClick={()=>setSelected(null)}>Done</button></div></div></Modal>}</>}
