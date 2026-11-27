@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Activity, ArrowDownRight, ArrowUpRight, Boxes, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, LayoutDashboard, LogOut, Menu, Package, Plus, Search, Settings2, ShieldCheck, SlidersHorizontal, Tag, Users, Warehouse, Globe2, UserRound, Eye, EyeOff, MoreHorizontal, Pencil, Trash2, X, AlertTriangle, ArrowUp, ArrowDown, Image as ImageIcon } from 'lucide-react'
 import { AdminStore, useAdminStore, type Product, type Category, type Dealer, type State, productImage } from '@/lib/admin/store'
+import { AuthProvider, useAuth } from '@/lib/auth'
+import { ApiError } from '@/lib/http'
 import { Inventory, Dealers, DealerDetail, CartActivity, WebsiteContent, Profile, Modal } from '@/components/admin/admin-extras'
 
 const menu=[{name:'Dashboard',path:'/admin/dashboard',icon:LayoutDashboard},{name:'Categories',path:'/admin/categories',icon:Tag},{name:'Products',path:'/admin/products',icon:Package},{name:'Inventory / Stock',path:'/admin/inventory',icon:Warehouse},{name:'Dealers',path:'/admin/dealers',icon:Users},{name:'Dealer Cart Activity',path:'/admin/dealer-cart-activity',icon:Activity},{name:'Website Content',path:'/admin/website-content',icon:Globe2},{name:'Admin Profile',path:'/admin/profile',icon:UserRound}]
@@ -12,19 +14,79 @@ const titles:Record<string,string>={dashboard:'Dashboard',categories:'Categories
 const money=(n:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n)
 const date=(s:string)=>new Date(`${s}T00:00:00`).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})
 function pageUrl(path:string){return path}
-export default function AdminApp(){return <AdminStore><AdminRouter/></AdminStore>}
-function AdminRouter(){const path=usePathname();const router=useRouter();const route=path.split('/').filter(Boolean).slice(1);const login=route[0]==='login';const [authenticated,setAuthenticated]=useState(false);const [loaded,setLoaded]=useState(false)
- useEffect(()=>{setAuthenticated(sessionStorage.getItem('rk-admin-session')==='active');setLoaded(true)},[])
- useEffect(()=>{if(loaded&&!login&&!authenticated)router.replace('/admin/login');if(loaded&&login&&authenticated)router.replace('/admin/dashboard')},[loaded,login,authenticated,router])
- if(!loaded||(!login&&!authenticated))return <div className="admin-loading"><span className="loading-mark">RK</span><span>Preparing your workspace</span></div>
- if(login)return <Login onLogin={()=>{sessionStorage.setItem('rk-admin-session','active');setAuthenticated(true);router.push('/admin/dashboard')}}/>
- return <AdminShell onLogout={()=>{sessionStorage.removeItem('rk-admin-session');setAuthenticated(false);router.push('/admin/login')}}><AdminPage route={route}/></AdminShell>
+export default function AdminApp(){return <AuthProvider><AdminStore><AdminRouter/></AdminStore></AuthProvider>}
+function AdminRouter(){
+  const path=usePathname();
+  const router=useRouter();
+  const route=path.split('/').filter(Boolean).slice(1);
+  const isLoginPage=route[0]==='login';
+  const { isAuthenticated, isLoading, logout } = useAuth();
+
+  useEffect(()=>{
+    if (!isLoading) {
+      if (!isLoginPage && !isAuthenticated) {
+        router.replace('/admin/login');
+      } else if (isLoginPage && isAuthenticated) {
+        router.replace('/admin/dashboard');
+      }
+    }
+  }, [isLoading, isLoginPage, isAuthenticated, router]);
+
+  if (isLoading || (!isLoginPage && !isAuthenticated)) {
+    return <div className="admin-loading"><span className="loading-mark">RK</span><span>Preparing your workspace</span></div>;
+  }
+
+  if (isLoginPage) {
+    return <Login onLoginSuccess={() => router.push('/admin/dashboard')} />;
+  }
+
+  return (
+    <AdminShell onLogout={async () => {
+      await logout();
+      router.push('/admin/login');
+    }}>
+      <AdminPage route={route}/>
+    </AdminShell>
+  );
 }
-function Login({onLogin}:{onLogin:()=>void}){const [email,setEmail]=useState('admin@rktiles.in');const [password,setPassword]=useState('');const [show,setShow]=useState(false);const [error,setError]=useState('');const submit=(e:FormEvent)=>{e.preventDefault();if(email.trim().toLowerCase()==='admin@rktiles.in'&&password==='rktiles2026')onLogin();else setError('The email or password you entered is incorrect.')}
- return <main className="login-page"><div className="login-art"><div className="login-brand"><span className="brand-mark">RK</span><span>RK TILES<span className="brand-sub">SURFACES, REIMAGINED</span></span></div><div className="login-art-copy"><span className="eyebrow">THE ADMIN WORKSPACE</span><h1>Thoughtful surfaces.<br/>Thoughtful business.</h1><p>Your central space to shape the RK Tiles catalogue and dealer experience.</p><div className="art-caption"><span className="caption-line"/> Curated for the way you work</div></div><div className="login-photo-credit">A quieter kind of luxury</div></div><section className="login-form-wrap"><div className="login-mobile-brand"><span className="brand-mark">RK</span> RK TILES</div><div className="login-form"><span className="eyebrow">WELCOME BACK</span><h2>Sign in to your workspace</h2><p className="muted">Enter your admin credentials to continue.</p><form onSubmit={submit}><label>Email address<input autoComplete="username" type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="you@rktiles.in"/></label><label>Password<span className="password-field"><input autoComplete="current-password" type={show?'text':'password'} value={password} onChange={e=>{setPassword(e.target.value);setError('')}} required placeholder="Enter your password"/><button type="button" aria-label={show?'Hide password':'Show password'} onClick={()=>setShow(!show)}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></span></label>{error&&<div className="form-error" role="alert">{error}</div>}<button className="primary-button wide" type="submit">Sign in <ArrowUpRight size={16}/></button></form><div className="login-hint"><ShieldCheck size={15}/> Secure admin access <span>·</span> Demo: admin@rktiles.in / rktiles2026</div></div><div className="login-footer">© 2026 RK Tiles <span>Privacy</span><span>Help</span></div></section></main>
+function Login({onLoginSuccess}:{onLoginSuccess:()=>void}){
+  const { login, isLoggingIn } = useAuth();
+  const [email,setEmail]=useState('admin@rktiles.com');
+  const [password,setPassword]=useState('');
+  const [show,setShow]=useState(false);
+  const [error,setError]=useState('');
+
+  const submit=async (e:FormEvent)=>{
+    e.preventDefault();
+    if (isLoggingIn) return;
+    setError('');
+    try {
+      await login({ email: email.trim(), password });
+      onLoginSuccess();
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setError(err.message || 'Invalid email or password');
+      } else {
+        setError(err?.message || 'An unexpected error occurred during sign in');
+      }
+    }
+  };
+
+  return <main className="login-page"><div className="login-art"><div className="login-brand"><span className="brand-mark">RK</span><span>RK TILES<span className="brand-sub">SURFACES, REIMAGINED</span></span></div><div className="login-art-copy"><span className="eyebrow">THE ADMIN WORKSPACE</span><h1>Thoughtful surfaces.<br/>Thoughtful business.</h1><p>Your central space to shape the RK Tiles catalogue and dealer experience.</p><div className="art-caption"><span className="caption-line"/> Curated for the way you work</div></div><div className="login-photo-credit">A quieter kind of luxury</div></div><section className="login-form-wrap"><div className="login-mobile-brand"><span className="brand-mark">RK</span> RK TILES</div><div className="login-form"><span className="eyebrow">WELCOME BACK</span><h2>Sign in to your workspace</h2><p className="muted">Enter your admin credentials to continue.</p><form onSubmit={submit}><label>Email address<input autoComplete="username" type="email" value={email} onChange={e=>setEmail(e.target.value)} required disabled={isLoggingIn} placeholder="admin@rktiles.com"/></label><label>Password<span className="password-field"><input autoComplete="current-password" type={show?'text':'password'} value={password} onChange={e=>{setPassword(e.target.value);setError('')}} required disabled={isLoggingIn} placeholder="Enter your password"/><button type="button" aria-label={show?'Hide password':'Show password'} onClick={()=>setShow(!show)}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></span></label>{error&&<div className="form-error" role="alert">{error}</div>}<button className="primary-button wide" type="submit" disabled={isLoggingIn}>{isLoggingIn ? 'Signing in...' : <>Sign in <ArrowUpRight size={16}/></>}</button></form><div className="login-hint"><ShieldCheck size={15}/> Secure admin access <span>·</span> Demo: admin@rktiles.com / Admin@123456</div></div><div className="login-footer">© 2026 RK Tiles <span>Privacy</span><span>Help</span></div></section></main>
 }
-function AdminShell({children,onLogout}:{children:React.ReactNode;onLogout:()=>void}){const path=usePathname();const [collapsed,setCollapsed]=useState(false);const [mobile,setMobile]=useState(false);const [profile,setProfile]=useState(false);const [search,setSearch]=useState('');const title=titles[path.split('/')[2]]||'Dealer Profile'
- return <div className="admin-shell"><aside className={`sidebar ${collapsed?'collapsed':''} ${mobile?'mobile-open':''}`}><Link href="/admin/dashboard" className="sidebar-brand"><span className="brand-mark">RK</span><span className="brand-name">RK TILES<small>ADMIN STUDIO</small></span><button className="collapse-btn" aria-label="Toggle sidebar" onClick={e=>{e.preventDefault();setCollapsed(!collapsed)}}><ChevronLeft size={16}/></button></Link><div className="nav-label">WORKSPACE</div><nav>{menu.map(item=>{const Icon=item.icon;const active=path===item.path||path.startsWith(item.path+'/');return <Link key={item.path} href={item.path} onClick={()=>setMobile(false)} className={`nav-link ${active?'active':''}`} title={collapsed?item.name:undefined}><Icon size={18}/><span>{item.name}</span>{active&&<i/>}</Link>})}</nav><div className="sidebar-bottom"><div className="help-card"><span className="help-icon"><CircleHelp size={17}/></span><div><strong>Need a hand?</strong><small>Get help with your workspace</small></div><ChevronRight size={15}/></div><div className="sidebar-user"><span className="avatar">RK</span><span className="user-label"><strong>Rohan Kapoor</strong><small>Owner · Administrator</small></span><button aria-label="Account menu" onClick={()=>setProfile(!profile)}><MoreHorizontal size={18}/></button></div></div></aside>{mobile&&<button className="mobile-shade" aria-label="Close navigation" onClick={()=>setMobile(false)}/> }<main className="main-panel"><header className="topbar"><div className="topbar-left"><button className="mobile-menu" onClick={()=>setMobile(true)} aria-label="Open navigation"><Menu size={20}/></button><div className="crumb"><span>RK Tiles</span><ChevronRight size={13}/><strong>{title}</strong></div></div><div className="topbar-actions"><label className="top-search"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search anything..." aria-label="Search this page"/><kbd>⌘ K</kbd></label><span className="top-separator"/><div className="profile-menu-wrap"><button className="profile-trigger" onClick={()=>setProfile(!profile)}><span className="avatar">RK</span><span><strong>Rohan Kapoor</strong><small>Administrator</small></span><ChevronDown size={15}/></button>{profile&&<div className="profile-pop"><Link href="/admin/profile" onClick={()=>setProfile(false)}><UserRound size={16}/> Admin Profile</Link><button onClick={onLogout}><LogOut size={16}/> Log out</button></div>}</div></div></header><div className="page-area"><div className="page-content">{children}</div></div></main></div>
+function AdminShell({children,onLogout}:{children:React.ReactNode;onLogout:()=>void}){
+  const path=usePathname();
+  const { user } = useAuth();
+  const [collapsed,setCollapsed]=useState(false);
+  const [mobile,setMobile]=useState(false);
+  const [profile,setProfile]=useState(false);
+  const [search,setSearch]=useState('');
+  const title=titles[path.split('/')[2]]||'Dealer Profile';
+  const adminName = user?.name || 'Rohan Kapoor';
+  const adminRole = user?.role === 'admin' ? 'Administrator' : 'Administrator';
+  const initials = adminName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'RK';
+
+  return <div className="admin-shell"><aside className={`sidebar ${collapsed?'collapsed':''} ${mobile?'mobile-open':''}`}><Link href="/admin/dashboard" className="sidebar-brand"><span className="brand-mark">RK</span><span className="brand-name">RK TILES<small>ADMIN STUDIO</small></span><button className="collapse-btn" aria-label="Toggle sidebar" onClick={e=>{e.preventDefault();setCollapsed(!collapsed)}}><ChevronLeft size={16}/></button></Link><div className="nav-label">WORKSPACE</div><nav>{menu.map(item=>{const Icon=item.icon;const active=path===item.path||path.startsWith(item.path+'/');return <Link key={item.path} href={item.path} onClick={()=>setMobile(false)} className={`nav-link ${active?'active':''}`} title={collapsed?item.name:undefined}><Icon size={18}/><span>{item.name}</span>{active&&<i/>}</Link>})}</nav><div className="sidebar-bottom"><div className="help-card"><span className="help-icon"><CircleHelp size={17}/></span><div><strong>Need a hand?</strong><small>Get help with your workspace</small></div><ChevronRight size={15}/></div><div className="sidebar-user"><span className="avatar">{initials}</span><span className="user-label"><strong>{adminName}</strong><small>{adminRole}</small></span><button aria-label="Account menu" onClick={()=>setProfile(!profile)}><MoreHorizontal size={18}/></button></div></div></aside>{mobile&&<button className="mobile-shade" aria-label="Close navigation" onClick={()=>setMobile(false)}/> }<main className="main-panel"><header className="topbar"><div className="topbar-left"><button className="mobile-menu" onClick={()=>setMobile(true)} aria-label="Open navigation"><Menu size={20}/></button><div className="crumb"><span>RK Tiles</span><ChevronRight size={13}/><strong>{title}</strong></div></div><div className="topbar-actions"><label className="top-search"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search anything..." aria-label="Search this page"/><kbd>⌘ K</kbd></label><span className="top-separator"/><div className="profile-menu-wrap"><button className="profile-trigger" onClick={()=>setProfile(!profile)}><span className="avatar">{initials}</span><span><strong>{adminName}</strong><small>{adminRole}</small></span><ChevronDown size={15}/></button>{profile&&<div className="profile-pop"><Link href="/admin/profile" onClick={()=>setProfile(false)}><UserRound size={16}/> Admin Profile</Link><button onClick={onLogout}><LogOut size={16}/> Log out</button></div>}</div></div></header><div className="page-area"><div className="page-content">{children}</div></div></main></div>
 }
 function useStateData(){return useAdminStore()}
 function AdminPage({route}:{route:string[]}){const key=route[0]||'dashboard';const {data,update}=useStateData();const id=route[1];if(key==='dashboard')return <Dashboard data={data}/>;if(key==='categories')return <Categories data={data} update={update}/>;if(key==='products')return <Products data={data} update={update}/>;if(key==='inventory')return <Inventory data={data} update={update}/>;if(key==='dealers'&&id)return <DealerDetail data={data} update={update} id={id}/>;if(key==='dealers')return <Dealers data={data} update={update}/>;if(key==='dealer-cart-activity')return <CartActivity data={data}/>;if(key==='website-content')return <WebsiteContent data={data} update={update}/>;if(key==='profile')return <Profile/>;return <Dashboard data={data}/>}
