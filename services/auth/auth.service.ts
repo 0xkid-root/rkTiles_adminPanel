@@ -36,6 +36,13 @@ export const authService = {
   async changePassword(payload: ChangePasswordPayload): Promise<ApiResponse<null>> {
     return httpClient.post<ApiResponse<null>>('/auth/change-password', payload);
   },
+
+  /**
+   * Updates admin profile (name, mobile, alternateMobile).
+   */
+  async updateAdminProfile(payload: { name?: string; mobile?: string; alternateMobile?: string }): Promise<ApiResponse<AdminUser>> {
+    return httpClient.patch<ApiResponse<AdminUser>>('/admin/profile', payload);
+  },
 };
 
 export default authService;
