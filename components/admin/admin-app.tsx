@@ -10,8 +10,8 @@ import { LoginForm } from '@/components/admin/auth/login-form';
 import { DashboardView } from '@/components/admin/dashboard/dashboard-view';
 import { CategoriesView } from '@/components/admin/categories/categories-view';
 import { ProductsView } from '@/components/admin/products/products-view';
+import { InventoryView } from '@/components/admin/inventory/inventory-view';
 import {
-  Inventory,
   Dealers,
   DealerDetail,
   CartActivity,
@@ -86,7 +86,7 @@ function AdminPage({ route }: { route: string[] }) {
     case 'products':
       return <ProductsView data={data} update={update} />;
     case 'inventory':
-      return <Inventory data={data} update={update} />;
+      return <InventoryView />;
     case 'dealers':
       return id ? (
         <DealerDetail data={data} update={update} id={id} />

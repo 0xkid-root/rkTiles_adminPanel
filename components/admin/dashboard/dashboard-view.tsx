@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
   AlertTriangle,
@@ -20,19 +21,31 @@ import { StatCard } from '@/components/admin/shared/stat-card';
 import { StatusBadge } from '@/components/admin/shared/status-badge';
 import { ProductPhoto } from '@/components/admin/shared/product-photo';
 import { formatDate } from '@/components/admin/shared/formatters';
+import { inventoryService } from '@/services/inventory';
 
 interface DashboardViewProps {
   data: State;
 }
 
 export function DashboardView({ data }: DashboardViewProps) {
-  const total = data.products.reduce((s, p) => s + p.stock, 0);
   const approved = data.dealers.filter((d) => d.status === 'Approved').length;
   const pending = data.dealers.filter((d) => d.status === 'Pending').length;
-  const low = data.products.filter((p) => p.stock > 0 && p.stock <= p.threshold);
   const stockStatus = (p: Product) =>
     p.stock === 0 ? 'Out of stock' : p.stock <= p.threshold ? 'Low stock' : 'In stock';
   const cartCount = (d: Dealer) => d.cart.reduce((s, c) => s + c.quantity, 0);
+
+  const { data: summaryRes } = useQuery({
+    queryKey: ['inventory', 'summary'],
+    queryFn: () => inventoryService.getSummary(),
+  });
+  const { data: lowRes, isLoading: lowLoading } = useQuery({
+    queryKey: ['inventory', 'low-stock', { limit: 3 }],
+    queryFn: () => inventoryService.getLowStock({ page: 1, limit: 3 }),
+  });
+
+  const summary = summaryRes?.data;
+  const lowItems = lowRes?.data || [];
+  const totalUnits = summary?.totalStockUnits ?? 0;
 
   return (
     <>
@@ -50,7 +63,7 @@ export function DashboardView({ data }: DashboardViewProps) {
       <div className="stats-grid">
         <StatCard label="Total products" value={data.products.length} detail="Across your catalogue" icon={Package} />
         <StatCard label="Categories" value={data.categories.length} detail={`${data.categories.filter((c) => c.active).length} visible on website`} icon={Tag} tone="blue" />
-        <StatCard label="Total stock quantity" value={total.toLocaleString('en-IN')} detail="Central inventory units" icon={Warehouse} tone="green" />
+        <StatCard label="Total stock quantity" value={summary ? totalUnits.toLocaleString('en-IN') : '—'} detail="Central inventory units" icon={Warehouse} tone="green" />
         <StatCard label="Total dealers" value={data.dealers.length} detail={`${approved} approved partners`} icon={Users} tone="blue" />
         <StatCard label="Approved dealers" value={approved} detail="Ready to browse catalogue" icon={Check} tone="green" />
         <StatCard label="Pending approvals" value={pending} detail="Awaiting your review" icon={Activity} tone="amber" />
@@ -69,26 +82,24 @@ export function DashboardView({ data }: DashboardViewProps) {
           </div>
           <div className="inventory-summary">
             <div>
-              <span className="summary-number">{data.products.length}</span>
+              <span className="summary-number">{summary ? summary.totalProducts : '—'}</span>
               <span className="summary-label">Products tracked</span>
             </div>
             <div>
-              <span className="summary-number warning-text">{low.length}</span>
+              <span className="summary-number warning-text">{summary ? summary.lowStockProducts : '—'}</span>
               <span className="summary-label">Low stock</span>
             </div>
             <div>
-              <span className="summary-number danger-text">
-                {data.products.filter((p) => p.stock === 0).length}
-              </span>
+              <span className="summary-number danger-text">{summary ? summary.outOfStockProducts : '—'}</span>
               <span className="summary-label">Out of stock</span>
             </div>
           </div>
           <div className="stock-bar-label">
             <span>Available stock</span>
-            <strong>{total.toLocaleString('en-IN')} units</strong>
+            <strong>{summary ? `${totalUnits.toLocaleString('en-IN')} units` : '—'}</strong>
           </div>
           <div className="stock-bar">
-            <i style={{ width: `${Math.max(5, Math.min(100, total / 8))}%` }} />
+            <i style={{ width: `${summary ? Math.max(5, Math.min(100, totalUnits / 8)) : 0}%` }} />
           </div>
           <div className="stock-foot">
             <span>
@@ -104,20 +115,22 @@ export function DashboardView({ data }: DashboardViewProps) {
               <h2>Low stock alerts</h2>
               <p>Products to replenish soon</p>
             </div>
-            <span className="alert-count">{low.length} items</span>
+            <span className="alert-count">{summary ? summary.lowStockProducts : lowItems.length} items</span>
           </div>
-          {low.length ? (
-            low.slice(0, 3).map((p) => (
-              <div className="alert-row" key={p.id}>
+          {lowLoading ? (
+            <div className="empty-inline">Loading stock alerts…</div>
+          ) : lowItems.length ? (
+            lowItems.map((p) => (
+              <div className="alert-row" key={p._id}>
                 <span className="alert-mark">
                   <AlertTriangle size={15} />
                 </span>
                 <div className="alert-info">
                   <strong>{p.name}</strong>
-                  <small>{p.sku}</small>
+                  <small>{p.SKU}</small>
                 </div>
                 <span className="alert-qty">
-                  {p.stock} <small>left</small>
+                  {p.stockQuantity} <small>left</small>
                 </span>
               </div>
             ))
