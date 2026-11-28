@@ -11,9 +11,9 @@ import { DashboardView } from '@/components/admin/dashboard/dashboard-view';
 import { CategoriesView } from '@/components/admin/categories/categories-view';
 import { ProductsView } from '@/components/admin/products/products-view';
 import { InventoryView } from '@/components/admin/inventory/inventory-view';
+import { DealersView } from '@/components/admin/dealers/dealers-view';
+import { DealerDetailView } from '@/components/admin/dealers/dealer-detail-view';
 import {
-  Dealers,
-  DealerDetail,
   CartActivity,
   WebsiteContent,
   Profile,
@@ -80,7 +80,7 @@ function AdminPage({ route }: { route: string[] }) {
 
   switch (key) {
     case 'dashboard':
-      return <DashboardView data={data} />;
+      return <DashboardView />;
     case 'categories':
       return <CategoriesView data={data} update={update} />;
     case 'products':
@@ -88,11 +88,7 @@ function AdminPage({ route }: { route: string[] }) {
     case 'inventory':
       return <InventoryView />;
     case 'dealers':
-      return id ? (
-        <DealerDetail data={data} update={update} id={id} />
-      ) : (
-        <Dealers data={data} update={update} />
-      );
+      return id ? <DealerDetailView id={id} /> : <DealersView />;
     case 'dealer-cart-activity':
       return <CartActivity data={data} />;
     case 'website-content':
@@ -100,6 +96,6 @@ function AdminPage({ route }: { route: string[] }) {
     case 'profile':
       return <Profile />;
     default:
-      return <DashboardView data={data} />;
+      return <DashboardView />;
   }
 }
