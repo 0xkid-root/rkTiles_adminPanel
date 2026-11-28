@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, type FormEvent } from 'react';
-import { Check, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import type { Category, State } from '@/lib/admin/store';
 import { productImage } from '@/lib/admin/store';
 import { categoryService } from '@/services/categories';
@@ -17,12 +18,11 @@ interface CategoriesViewProps {
   update: (fn: (s: State) => State) => void;
 }
 
-export function CategoriesView({ data, update }: CategoriesViewProps) {
+export function CategoriesView({ data }: CategoriesViewProps) {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Category | null | false>(false);
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
 
   // 1. React Query fetch with automatic caching, deduplication & zero infinite loops
   const { data: categories = [], isLoading } = useQuery({
@@ -58,17 +58,18 @@ export function CategoriesView({ data, update }: CategoriesViewProps) {
       }
       return categoryService.create(payload);
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (res, variables) => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       setEditing(false);
-      setNotice(variables.isEditing ? 'Category updated successfully.' : 'Category created successfully.');
+      setModalError('');
+      // Use actual backend message instead of hardcoding
+      const backendMessage = res?.message || (variables.isEditing ? 'Category updated' : 'Category created');
+      toast.success(backendMessage);
     },
     onError: (err: any) => {
-      if (err instanceof ApiError) {
-        setError(err.message || 'Operation failed');
-      } else {
-        setError(err?.message || 'Could not save category');
-      }
+      const msg = err instanceof ApiError ? (err.message || 'Operation failed') : (err?.message || 'Could not save category');
+      setModalError(msg);
+      toast.error(msg);
     },
   });
 
@@ -76,21 +77,26 @@ export function CategoriesView({ data, update }: CategoriesViewProps) {
   const statusMutation = useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) =>
       categoryService.updateStatus(id, active),
-    onSuccess: (_, variables) => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
-      setNotice(`Category status updated.`);
+      // Use actual backend message
+      toast.success(res?.message || 'Category status updated successfully');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'Failed to update category status');
     },
   });
 
   // 4. React Query Mutation: Delete
   const deleteMutation = useMutation({
     mutationFn: (id: string) => categoryService.delete(id),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
-      setNotice('Category removed.');
+      // Use actual backend message
+      toast.success(res?.message || 'Category removed successfully');
     },
     onError: (err: any) => {
-      setError(err?.message || 'Could not delete category');
+      toast.error(err?.message || 'Could not delete category');
     },
   });
 
@@ -103,8 +109,7 @@ export function CategoriesView({ data, update }: CategoriesViewProps) {
   const save = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (saveMutation.isPending) return;
-    setError('');
-    setNotice('');
+    setModalError('');
 
     const form = new FormData(e.currentTarget);
     const name = String(form.get('name')).trim();
@@ -132,7 +137,7 @@ export function CategoriesView({ data, update }: CategoriesViewProps) {
   const removeCategory = (category: Category) => {
     const count = data.products.filter((p) => p.categoryId === category.id).length;
     if (count) {
-      setNotice(`Cannot delete “${category.name}”: ${count} product${count === 1 ? ' is' : 's are'} assigned.`);
+      toast.warning(`Cannot delete “${category.name}”: ${count} product${count === 1 ? ' is' : 's are'} assigned.`);
       return;
     }
     if (!confirm(`Delete ${category.name}? This cannot be undone.`)) return;
@@ -149,8 +154,7 @@ export function CategoriesView({ data, update }: CategoriesViewProps) {
           <button
             className="primary-button"
             onClick={() => {
-              setError('');
-              setNotice('');
+              setModalError('');
               setEditing(null);
             }}
           >
@@ -158,20 +162,6 @@ export function CategoriesView({ data, update }: CategoriesViewProps) {
           </button>
         }
       />
-      {notice && (
-        <div className="notice">
-          <Check size={16} />
-          {notice}
-          <button onClick={() => setNotice('')}>
-            <X size={15} />
-          </button>
-        </div>
-      )}
-      {error && (
-        <div className="form-error" role="alert" style={{ marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
 
       <section className="panel content-panel">
         <div className="list-toolbar">
@@ -200,7 +190,7 @@ export function CategoriesView({ data, update }: CategoriesViewProps) {
                   className="icon-button category-edit"
                   aria-label={`Edit ${c.name}`}
                   onClick={() => {
-                    setError('');
+                    setModalError('');
                     setEditing(c);
                   }}
                 >
@@ -223,7 +213,7 @@ export function CategoriesView({ data, update }: CategoriesViewProps) {
                   <button
                     className="secondary-button compact"
                     onClick={() => {
-                      setError('');
+                      setModalError('');
                       setEditing(c);
                     }}
                   >
@@ -260,9 +250,9 @@ export function CategoriesView({ data, update }: CategoriesViewProps) {
           onClose={() => setEditing(false)}
         >
           <form className="admin-form" onSubmit={save}>
-            {error && (
+            {modalError && (
               <div className="form-error" role="alert">
-                {error}
+                {modalError}
               </div>
             )}
             <div className="form-grid">
